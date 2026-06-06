@@ -6,6 +6,9 @@ const pageLabels = window.LAPADRE_PAGE_LABELS || {};
 const hotspots = window.LAPADRE_HOTSPOTS || {};
 const crops = window.LAPADRE_CROPS || {};
 
+const loadedPages = new Set();
+const loadingPages = new Map();
+
 const backTargets = {
   '#sayfa2': '#sayfa1',
   '#sayfa3': '#sayfa1',
@@ -23,6 +26,37 @@ const backTargets = {
   '#sayfa15': '#sayfa3'
 };
 
+function createLoader() {
+  const loader = document.createElement('div');
+  loader.className = 'site-loader';
+  loader.textContent = 'Yükleniyor...';
+  loader.style.cssText = `
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.92);
+    color: #111;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+  `;
+  document.body.appendChild(loader);
+  return loader;
+}
+
+const loader = createLoader();
+
+function showLoader() {
+  loader.style.display = 'flex';
+}
+
+function hideLoader() {
+  loader.style.display = 'none';
+}
+
 function createSite() {
   site.innerHTML = '';
 
@@ -33,20 +67,11 @@ function createSite() {
     section.dataset.page = String(page);
 
     const img = document.createElement('img');
-
-    /*
-      LAZY LOADING MANTIĞI:
-      Görseli hemen src ile yüklemiyoruz.
-      Önce data-src içinde bekletiyoruz.
-      Sayfa aktif olunca gerçek src veriliyor.
-    */
     img.dataset.src = `images/${page}.png`;
     img.alt = pageLabels[String(page)] || `Sayfa ${page}`;
     img.className = 'page-image';
-    img.loading = 'lazy';
     img.decoding = 'async';
-
-    img.addEventListener('load', () => applyCrop(section, img, page));
+    img.loading = 'eager';
 
     section.appendChild(img);
 
@@ -60,6 +85,17 @@ function createSite() {
       a.style.width = `${h.width}%`;
       a.style.height = `${h.height}%`;
       a.setAttribute('aria-label', h.label || 'Hotspot');
+
+      // Dokunma anında hedefi sessizce başlatır.
+      // Bu tıklama bekleme hissini azaltır ama bütün siteyi önceden yüklemez.
+      a.addEventListener('pointerdown', () => {
+        const targetHash = a.getAttribute('href');
+        if (targetHash && targetHash.startsWith('#sayfa')) {
+          const target = document.querySelector(targetHash);
+          if (target) loadSectionImage(target, false);
+        }
+      }, { passive: true });
+
       section.appendChild(a);
     });
 
@@ -67,33 +103,53 @@ function createSite() {
   });
 }
 
-function ensureImageLoaded(section) {
+function loadSectionImage(section, showLoading = true) {
+  if (!section) return Promise.resolve();
+
+  const page = section.dataset.page;
   const img = section.querySelector('.page-image');
-  if (!img) return;
+  if (!img) return Promise.resolve();
 
-  if (!img.getAttribute('src')) {
-    img.setAttribute('src', img.dataset.src);
+  if (loadedPages.has(page) || img.complete && img.getAttribute('src')) {
+    return Promise.resolve();
   }
-}
 
-function preloadLinkedImages(section) {
-  /*
-    Kullanıcının basabileceği hedef sayfaları hafifçe önceden hazırlar.
-    Bütün siteyi değil, sadece mevcut sayfadaki linklerin hedeflerini.
-  */
-  const links = section.querySelectorAll('.hotspot[href^="#sayfa"]');
+  if (loadingPages.has(page)) {
+    return loadingPages.get(page);
+  }
 
-  links.forEach(link => {
-    const targetSelector = link.getAttribute('href');
-    const target = document.querySelector(targetSelector);
-    if (!target) return;
+  if (showLoading) showLoader();
 
-    const img = target.querySelector('.page-image');
-    if (!img || img.getAttribute('src')) return;
+  const promise = new Promise(resolve => {
+    img.onload = async () => {
+      loadedPages.add(page);
 
-    const pre = new Image();
-    pre.src = img.dataset.src;
+      try {
+        if (img.decode) await img.decode();
+      } catch (e) {}
+
+      applyCrop(section, img, page);
+      if (showLoading) hideLoader();
+      resolve();
+    };
+
+    img.onerror = () => {
+      if (showLoading) hideLoader();
+      resolve();
+    };
+
+    if (!img.getAttribute('src')) {
+      // İlk sayfaya yüksek öncelik ver.
+      if (page === '1' && 'fetchPriority' in img) {
+        img.fetchPriority = 'high';
+      }
+
+      img.setAttribute('src', img.dataset.src);
+    }
   });
+
+  loadingPages.set(page, promise);
+  return promise;
 }
 
 function applyCrop(section, img, page) {
@@ -105,33 +161,32 @@ function applyCrop(section, img, page) {
   }
 
   const renderedHeight = img.getBoundingClientRect().height;
-  section.style.height = `${renderedHeight * (1 - cropBottomPercent / 100)}px`;
+  if (renderedHeight > 0) {
+    section.style.height = `${renderedHeight * (1 - cropBottomPercent / 100)}px`;
+  }
 }
 
-function applyAllCrops() {
-  document.querySelectorAll('.screen.active').forEach(section => {
-    const page = section.dataset.page;
-    const img = section.querySelector('.page-image');
+function applyActiveCrop() {
+  const section = document.querySelector('.screen.active');
+  if (!section) return;
 
-    if (img && img.getAttribute('src')) {
-      applyCrop(section, img, page);
-    }
-  });
+  const img = section.querySelector('.page-image');
+  if (img && img.getAttribute('src')) {
+    applyCrop(section, img, section.dataset.page);
+  }
 }
 
-function showPageFromHash() {
+async function showPageFromHash() {
   const hash = window.location.hash || '#sayfa1';
   const target = document.querySelector(hash);
+  const active = target && target.classList.contains('screen') ? target : document.querySelector('#sayfa1');
+
+  await loadSectionImage(active, true);
 
   document.querySelectorAll('.screen').forEach(section => {
     section.classList.remove('active');
   });
 
-  const active = target && target.classList.contains('screen')
-    ? target
-    : document.querySelector('#sayfa1');
-
-  ensureImageLoaded(active);
   active?.classList.add('active');
 
   const activeHash = '#' + active.id;
@@ -150,19 +205,12 @@ function showPageFromHash() {
     backButton.classList.remove('show');
   }
 
-  applyAllCrops();
-
-  /*
-    iPhone için yük bindirmemek adına 300 ms sonra
-    sadece yakındaki muhtemel hedefleri önden hazırlar.
-  */
-  setTimeout(() => preloadLinkedImages(active), 300);
-
+  applyActiveCrop();
   window.scrollTo(0, 0);
 }
 
 window.addEventListener('hashchange', showPageFromHash);
-window.addEventListener('resize', applyAllCrops);
+window.addEventListener('resize', applyActiveCrop);
 
 window.addEventListener('DOMContentLoaded', () => {
   createSite();
