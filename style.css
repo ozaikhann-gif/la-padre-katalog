@@ -1,0 +1,114 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  background: #eeeeee;
+  font-family: Arial, sans-serif;
+}
+
+.site {
+  width: 100%;
+}
+
+.screen {
+  display: none;
+  position: relative;
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  background: #fff;
+  overflow: hidden;
+}
+
+.screen.active {
+  display: block;
+}
+
+.page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hotspot {
+  position: absolute;
+  display: block;
+  z-index: 20;
+  text-decoration: none;
+  background: rgba(255, 0, 0, 0);
+}
+
+/* Otomatik geri butonu */
+.back-button {
+  position: fixed;
+  left: max(10px, calc((100vw - min(100vw, 1080px)) / 2 + 14px));
+  top: 12px;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.18);
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(10px);
+  color: #111;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.back-button.show {
+  display: inline-flex;
+}
+
+.page-nav {
+  position: fixed;
+  right: max(10px, calc((100vw - min(100vw, 1080px)) / 2 + 14px));
+  bottom: 16px;
+  z-index: 9999;
+  display: none;
+  gap: 8px;
+}
+
+.page-nav.show {
+  display: flex;
+}
+
+.page-nav a {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.18);
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(10px);
+  color: #111;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+@media (max-width: 600px) {
+  .back-button {
+    left: 10px;
+    top: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .page-nav {
+    right: 10px;
+    bottom: 12px;
+  }
+
+  .page-nav a {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+}
