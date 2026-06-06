@@ -1,1 +1,118 @@
-*{box-sizing:border-box}html{scroll-behavior:auto}body{margin:0;background:#eee;font-family:Arial,sans-serif}.site{width:100%}.screen{display:none;position:relative;width:min(100%,1080px);margin:0 auto;background:#fff;overflow:hidden}.screen.active{display:block}.page-image{display:block;width:100%;height:auto}.hotspot{position:absolute;display:block;z-index:20;text-decoration:none;background:rgba(255,0,0,0)}.back-button{position:fixed;left:max(10px,calc((100vw - min(100vw,1080px))/2 + 14px));top:12px;z-index:9999;display:none;align-items:center;gap:6px;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.88);backdrop-filter:blur(10px);color:#fff;font-size:14px;font-weight:700;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.24)}.back-button.show{display:inline-flex}@media(max-width:600px){.back-button{left:10px;top:10px;padding:9px 12px;font-size:13px}}
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  background: #eeeeee;
+  font-family: Arial, sans-serif;
+}
+
+.site {
+  width: 100%;
+}
+
+.screen {
+  display: none;
+  position: relative;
+  width: min(100%, 1080px);
+  margin: 0 auto;
+  background: #fff;
+  overflow: hidden;
+}
+
+.screen.active {
+  display: block;
+}
+
+.page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/*
+  HOTSPOT FINAL AYARI:
+  Telefonlarda çıkan mavi/kare tıklama efektini kapatır.
+*/
+.hotspot {
+  position: absolute;
+  display: block;
+  z-index: 20;
+  text-decoration: none;
+  background: transparent;
+  border-radius: 999px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.hotspot:focus,
+.hotspot:active,
+.hotspot:visited {
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hotspot:focus-visible {
+  outline: none;
+}
+
+/* Siyah / beyaz geri butonu */
+.back-button {
+  position: fixed;
+  left: max(10px, calc((100vw - min(100vw, 1080px)) / 2 + 14px));
+  top: 12px;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.24);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.back-button.show {
+  display: inline-flex;
+}
+
+.back-button:focus,
+.back-button:active,
+.back-button:visited {
+  outline: none;
+  color: #fff;
+  background: rgba(0,0,0,0.88);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.24);
+}
+
+.back-button:focus-visible {
+  outline: none;
+}
+
+@media (max-width: 600px) {
+  .back-button {
+    left: 10px;
+    top: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+}
