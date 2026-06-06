@@ -7,7 +7,6 @@ const hotspots = window.LAPADRE_HOTSPOTS || {};
 const crops = window.LAPADRE_CROPS || {};
 
 const loadedPages = new Set();
-const loadingPages = new Map();
 
 const backTargets = {
   '#sayfa2': '#sayfa1',
@@ -26,36 +25,14 @@ const backTargets = {
   '#sayfa15': '#sayfa3'
 };
 
-function createLoader() {
-  const loader = document.createElement('div');
-  loader.className = 'site-loader';
-  loader.textContent = 'Yükleniyor...';
-  loader.style.cssText = `
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255,255,255,0.92);
-    color: #111;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-  `;
-  document.body.appendChild(loader);
-  return loader;
-}
-
-const loader = createLoader();
-
-function showLoader() {
-  loader.style.display = 'flex';
-}
-
-function hideLoader() {
-  loader.style.display = 'none';
-}
+/*
+  HIZLI LAZY LOADING MANTIĞI:
+  - İlk sayfa hemen yüklenir.
+  - Sayfa açıldıktan kısa süre sonra 2 ve 3. sayfalar arkadan hazırlanır.
+  - Bir butona dokununca hedef sayfanın görseli hemen yüklenmeye başlar.
+  - Hedef sayfaya geçerken "yükleniyor" ekranı göstermez; bekleme hissini azaltır.
+  - Görsel bir kez yüklendiyse tekrar yüklenmez.
+*/
 
 function createSite() {
   site.innerHTML = '';
@@ -71,7 +48,16 @@ function createSite() {
     img.alt = pageLabels[String(page)] || `Sayfa ${page}`;
     img.className = 'page-image';
     img.decoding = 'async';
-    img.loading = 'eager';
+    img.loading = page === 1 ? 'eager' : 'lazy';
+
+    if (page === 1 && 'fetchPriority' in img) {
+      img.fetchPriority = 'high';
+    }
+
+    img.addEventListener('load', () => {
+      loadedPages.add(String(page));
+      applyCrop(section, img, page);
+    });
 
     section.appendChild(img);
 
@@ -86,14 +72,14 @@ function createSite() {
       a.style.height = `${h.height}%`;
       a.setAttribute('aria-label', h.label || 'Hotspot');
 
-      // Dokunma anında hedefi sessizce başlatır.
-      // Bu tıklama bekleme hissini azaltır ama bütün siteyi önceden yüklemez.
+      // Kullanıcı dokunur dokunmaz hedef görseli başlat.
       a.addEventListener('pointerdown', () => {
-        const targetHash = a.getAttribute('href');
-        if (targetHash && targetHash.startsWith('#sayfa')) {
-          const target = document.querySelector(targetHash);
-          if (target) loadSectionImage(target, false);
-        }
+        warmTarget(a.getAttribute('href'));
+      }, { passive: true });
+
+      // Masaüstünde mouse üstüne gelince de hazırla.
+      a.addEventListener('mouseenter', () => {
+        warmTarget(a.getAttribute('href'));
       }, { passive: true });
 
       section.appendChild(a);
@@ -103,53 +89,55 @@ function createSite() {
   });
 }
 
-function loadSectionImage(section, showLoading = true) {
-  if (!section) return Promise.resolve();
+function getSectionFromHash(hash) {
+  if (!hash || !hash.startsWith('#sayfa')) return null;
+  return document.querySelector(hash);
+}
+
+function loadImageForSection(section, priority = 'normal') {
+  if (!section) return;
 
   const page = section.dataset.page;
   const img = section.querySelector('.page-image');
-  if (!img) return Promise.resolve();
+  if (!img) return;
 
-  if (loadedPages.has(page) || img.complete && img.getAttribute('src')) {
-    return Promise.resolve();
+  if (img.getAttribute('src')) return;
+
+  if (priority === 'high' && 'fetchPriority' in img) {
+    img.fetchPriority = 'high';
   }
 
-  if (loadingPages.has(page)) {
-    return loadingPages.get(page);
-  }
+  img.setAttribute('src', img.dataset.src);
+}
 
-  if (showLoading) showLoader();
+function warmTarget(hash) {
+  const target = getSectionFromHash(hash);
+  if (!target) return;
+  loadImageForSection(target, 'high');
+}
 
-  const promise = new Promise(resolve => {
-    img.onload = async () => {
-      loadedPages.add(page);
+function preloadPage(pageNumber) {
+  const section = document.querySelector(`#sayfa${pageNumber}`);
+  if (!section) return;
+  loadImageForSection(section, 'normal');
+}
 
-      try {
-        if (img.decode) await img.decode();
-      } catch (e) {}
+function preloadLikelyPages() {
+  // Ana girişten sonra en muhtemel hedefler: erkek ve kadın kategori.
+  preloadPage(2);
+  preloadPage(3);
+}
 
-      applyCrop(section, img, page);
-      if (showLoading) hideLoader();
-      resolve();
-    };
+function preloadCurrentLinks(section) {
+  // Aktif sayfadaki tıklanabilir hedefleri arka planda hazırla.
+  // Bütün siteyi değil, sadece mevcut sayfanın olası hedeflerini.
+  const links = section.querySelectorAll('.hotspot[href^="#sayfa"]');
 
-    img.onerror = () => {
-      if (showLoading) hideLoader();
-      resolve();
-    };
-
-    if (!img.getAttribute('src')) {
-      // İlk sayfaya yüksek öncelik ver.
-      if (page === '1' && 'fetchPriority' in img) {
-        img.fetchPriority = 'high';
-      }
-
-      img.setAttribute('src', img.dataset.src);
-    }
+  links.forEach(link => {
+    const href = link.getAttribute('href');
+    const target = getSectionFromHash(href);
+    if (target) loadImageForSection(target, 'normal');
   });
-
-  loadingPages.set(page, promise);
-  return promise;
 }
 
 function applyCrop(section, img, page) {
@@ -161,6 +149,7 @@ function applyCrop(section, img, page) {
   }
 
   const renderedHeight = img.getBoundingClientRect().height;
+
   if (renderedHeight > 0) {
     section.style.height = `${renderedHeight * (1 - cropBottomPercent / 100)}px`;
   }
@@ -176,18 +165,20 @@ function applyActiveCrop() {
   }
 }
 
-async function showPageFromHash() {
+function showPageFromHash() {
   const hash = window.location.hash || '#sayfa1';
-  const target = document.querySelector(hash);
-  const active = target && target.classList.contains('screen') ? target : document.querySelector('#sayfa1');
+  const target = getSectionFromHash(hash);
+  const active = target && target.classList.contains('screen')
+    ? target
+    : document.querySelector('#sayfa1');
 
-  await loadSectionImage(active, true);
+  loadImageForSection(active, active.id === 'sayfa1' ? 'high' : 'normal');
 
   document.querySelectorAll('.screen').forEach(section => {
     section.classList.remove('active');
   });
 
-  active?.classList.add('active');
+  active.classList.add('active');
 
   const activeHash = '#' + active.id;
   const backTarget = backTargets[activeHash];
@@ -206,6 +197,10 @@ async function showPageFromHash() {
   }
 
   applyActiveCrop();
+
+  // Sayfa geçtikten sonra bu sayfadaki olası hedefleri hazırla.
+  setTimeout(() => preloadCurrentLinks(active), 500);
+
   window.scrollTo(0, 0);
 }
 
@@ -215,4 +210,7 @@ window.addEventListener('resize', applyActiveCrop);
 window.addEventListener('DOMContentLoaded', () => {
   createSite();
   showPageFromHash();
+
+  // İlk açılıştan biraz sonra kategori sayfalarını hazırla.
+  setTimeout(preloadLikelyPages, 700);
 });
